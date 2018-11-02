@@ -1,33 +1,24 @@
 extern crate termion;
 
 use std::io::{stdin, stdout, Write};
-use std::sync::mpsc::channel;
-use std::thread;
-use std::time::Duration;
 use termion::event::{Event, Key};
-use termion::input::{MouseTerminal, TermRead};
+use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
 
 fn main() {
     let stdin = stdin();
-    let mut stdout = MouseTerminal::from(AlternateScreen::from(stdout()).into_raw_mode().unwrap());
-    let (tx, rx) = channel();
+    // Rawモードに移行
+    // into_raw_modeはIntoRawModeトレイトに定義されている
+    // めんどくさいので失敗時は終了(unwrap)
+    // stdout変数がDropするときにrawモードから元の状態にもどる
+    let mut stdout = stdout().into_raw_mode().unwrap();
 
-    thread::spawn(move || {
-        for c in stdin.events() {
-            if let Ok(evt) = c {
-                tx.send(evt).unwrap();
-            }
+    // eventsはTermReadトレイトに定義されている
+    for evt in stdin.events() {
+        // Ctrl-cでプログラム終了
+        // Rawモードなので自前で終了方法を書いてかないと終了する方法がなくなってしまう！
+        if evt.unwrap() == Event::Key(Key::Ctrl('c')) {
+            return;
         }
-    });
-
-    loop {
-        if let Ok(evt) = rx.recv_timeout(Duration::from_millis(16)) {
-            if evt == Event::Key(Key::Ctrl('c')) {
-                return;
-            }
-        }
-        stdout.flush().unwrap();
     }
 }
