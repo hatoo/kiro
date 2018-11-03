@@ -2,7 +2,7 @@ extern crate clap;
 extern crate termion;
 
 use clap::{App, Arg};
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::ffi::OsStr;
 use std::fs;
 use std::io::{stdin, stdout, Write};
@@ -27,6 +27,8 @@ struct Kiro {
     buffer: Vec<Vec<char>>,
     // 現在のカーソルの位置
     cursor: Cursor,
+    // 画面の一番上はバッファの何行目か
+    row_offset: usize,
 }
 
 impl Default for Kiro {
@@ -34,6 +36,7 @@ impl Default for Kiro {
         Self {
             buffer: vec![Vec::new()],
             cursor: Cursor { row: 0, column: 0 },
+            row_offset: 0,
         }
     }
 }
@@ -57,40 +60,88 @@ impl Kiro {
             .unwrap_or(vec![Vec::new()]);
 
         self.cursor = Cursor { row: 0, column: 0 };
+        self.row_offset = 0;
+    }
+    fn terminal_size() -> (usize, usize) {
+        let (cols, rows) = termion::terminal_size().unwrap();
+        (rows as usize, cols as usize)
     }
     // 描画処理
     fn draw<T: Write>(&self, out: &mut T) {
+        // 画面サイズ(文字数)
+        let (rows, cols) = Self::terminal_size();
+
         write!(out, "{}", clear::All);
         write!(out, "{}", cursor::Goto(1, 1));
 
-        for line in &self.buffer {
-            for &c in line {
-                write!(out, "{}", c);
+        // 画面上の行、列
+        let mut row = 0;
+        let mut col = 0;
+
+        let mut display_cursor: Option<(usize, usize)> = None;
+
+        'outer: for i in self.row_offset..self.buffer.len() {
+            for j in 0..=self.buffer[i].len() {
+                if self.cursor == (Cursor { row: i, column: j }) {
+                    // 画面上のカーソルの位置がわかった
+                    display_cursor = Some((row, col));
+                }
+
+                if let Some(c) = self.buffer[i].get(j) {
+                    write!(out, "{}", c);
+                    col += 1;
+                    if col >= cols {
+                        row += 1;
+                        col = 0;
+                        if row >= rows {
+                            break 'outer;
+                        } else {
+                            // 最後の行の最後では改行すると1行ずれてしまうのでこのようなコードになっている
+                            write!(out, "\r\n");
+                        }
+                    }
+                }
             }
-            write!(out, "\r\n");
+            row += 1;
+            col = 0;
+            if row >= rows {
+                break;
+            } else {
+                // 最後の行の最後では改行すると1行ずれてしまうのでこのようなコードになっている
+                write!(out, "\r\n");
+            }
         }
 
-        write!(
-            out,
-            "{}",
-            cursor::Goto(self.cursor.column as u16 + 1, self.cursor.row as u16 + 1)
-        );
+        if let Some((r, c)) = display_cursor {
+            write!(out, "{}", cursor::Goto(c as u16 + 1, r as u16 + 1));
+        }
+
         out.flush().unwrap();
+    }
+    // カーソルが画面に映るようにする
+    fn scroll(&mut self) {
+        let (rows, _) = Self::terminal_size();
+        self.row_offset = min(self.row_offset, self.cursor.row);
+        if self.cursor.row + 1 >= rows {
+            self.row_offset = max(self.row_offset, self.cursor.row + 1 - rows);
+        }
     }
     fn cursor_up(&mut self) {
         if self.cursor.row > 0 {
             self.cursor.row -= 1;
             self.cursor.column = min(self.buffer[self.cursor.row].len(), self.cursor.column);
         }
+        self.scroll();
     }
     fn cursor_down(&mut self) {
         if self.cursor.row + 1 < self.buffer.len() {
             self.cursor.row += 1;
             self.cursor.column = min(self.cursor.column, self.buffer[self.cursor.row].len());
         }
+        self.scroll();
     }
     fn cursor_left(&mut self) {
-        if self.cursor.column > 1 {
+        if self.cursor.column > 0 {
             self.cursor.column -= 1;
         }
     }
