@@ -21,6 +21,84 @@ struct Cursor {
     column: usize,
 }
 
+// エディタの内部状態
+struct Kiro {
+    // テキスト本体
+    buffer: Vec<Vec<char>>,
+    // 現在のカーソルの位置
+    cursor: Cursor,
+}
+
+impl Default for Kiro {
+    fn default() -> Self {
+        Self {
+            buffer: vec![Vec::new()],
+            cursor: Cursor { row: 0, column: 0 },
+        }
+    }
+}
+
+impl Kiro {
+    // ファイルを読み込む
+    fn open(&mut self, path: &path::Path) {
+        self.buffer = fs::read_to_string(path)
+            .ok()
+            .map(|s| {
+                let buffer: Vec<Vec<char>> = s
+                    .lines()
+                    .map(|line| line.trim_right().chars().collect())
+                    .collect();
+                if buffer.is_empty() {
+                    vec![Vec::new()]
+                } else {
+                    buffer
+                }
+            })
+            .unwrap_or(vec![Vec::new()]);
+
+        self.cursor = Cursor { row: 0, column: 0 };
+    }
+    // 描画処理
+    fn draw<T: Write>(&self, out: &mut T) {
+        write!(out, "{}", clear::All);
+        write!(out, "{}", cursor::Goto(1, 1));
+
+        for line in &self.buffer {
+            for &c in line {
+                write!(out, "{}", c);
+            }
+            write!(out, "\r\n");
+        }
+
+        write!(
+            out,
+            "{}",
+            cursor::Goto(self.cursor.column as u16 + 1, self.cursor.row as u16 + 1)
+        );
+        out.flush().unwrap();
+    }
+    fn cursor_up(&mut self) {
+        if self.cursor.row > 0 {
+            self.cursor.row -= 1;
+            self.cursor.column = min(self.buffer[self.cursor.row].len(), self.cursor.column);
+        }
+    }
+    fn cursor_down(&mut self) {
+        if self.cursor.row + 1 < self.buffer.len() {
+            self.cursor.row += 1;
+            self.cursor.column = min(self.cursor.column, self.buffer[self.cursor.row].len());
+        }
+    }
+    fn cursor_left(&mut self) {
+        if self.cursor.column > 1 {
+            self.cursor.column -= 1;
+        }
+    }
+    fn cursor_right(&mut self) {
+        self.cursor.column = min(self.cursor.column + 1, self.buffer[self.cursor.row].len());
+    }
+}
+
 fn main() {
     // Clap
     let matches = App::new("kiro")
@@ -29,98 +107,38 @@ fn main() {
         .arg(Arg::with_name("file"))
         .get_matches();
 
-    // ファイルパスはUTF-8でない可能性があるのでOsStrを使います
     let file_path: Option<&OsStr> = matches.value_of_os("file");
 
-    // テキストを読み込む
-    // 改行コードに関してはlinesに一任している
-    let buffer: Vec<Vec<char>> = file_path
-        .and_then(|file_path| {
-            // エラー処理は適当
-            fs::read_to_string(path::Path::new(file_path))
-                .ok()
-                .map(|s| {
-                    let buffer: Vec<Vec<char>> = s
-                        .lines()
-                        .map(|line| line.trim_right().chars().collect())
-                        .collect();
-                    if buffer.is_empty() {
-                        vec![Vec::new()]
-                    } else {
-                        buffer
-                    }
-                })
-        })
-        .unwrap_or(vec![Vec::new()]);
+    let mut state = Kiro::default();
 
-    let mut cursor = Cursor { row: 0, column: 0 };
-
-    let stdin = stdin();
-    // Rawモードに移行
-    // into_raw_modeはIntoRawModeトレイトに定義されている
-    // めんどくさいので失敗時は終了(unwrap)
-    // stdout変数がDropするときにrawモードから元の状態にもどる
-    let mut stdout = AlternateScreen::from(stdout().into_raw_mode().unwrap());
-
-    // 画面全体をクリアする
-    write!(stdout, "{}", clear::All);
-    // カーソルを左上に設定する(1-indexed)
-    write!(stdout, "{}", cursor::Goto(1, 1));
-
-    // bufferの内容を出力する
-    for line in &buffer {
-        for &c in line {
-            write!(stdout, "{}", c);
-        }
-        // Rawモードでは改行は\r\nで行う
-        write!(stdout, "\r\n");
+    if let Some(file_path) = file_path {
+        state.open(path::Path::new(file_path));
     }
 
-    write!(stdout, "{}", cursor::Goto(1, 1));
-    // フラッシュする
-    stdout.flush().unwrap();
+    let stdin = stdin();
+    let mut stdout = AlternateScreen::from(stdout().into_raw_mode().unwrap());
 
-    // eventsはTermReadトレイトに定義されている
+    state.draw(&mut stdout);
+
     for evt in stdin.events() {
         match evt.unwrap() {
-            // Ctrl-cでプログラム終了
-            // Rawモードなので自前で終了方法を書いてかないと終了する方法がなくなってしまう！
             Event::Key(Key::Ctrl('c')) => {
                 return;
             }
-
-            // 方向キーの処理
             Event::Key(Key::Up) => {
-                if cursor.row > 0 {
-                    cursor.row -= 1;
-                    cursor.column = min(buffer[cursor.row].len(), cursor.column);
-                }
+                state.cursor_up();
             }
             Event::Key(Key::Down) => {
-                if cursor.row + 1 < buffer.len() {
-                    cursor.row += 1;
-                    cursor.column = min(cursor.column, buffer[cursor.row].len());
-                }
+                state.cursor_down();
             }
             Event::Key(Key::Left) => {
-                if cursor.column > 1 {
-                    cursor.column -= 1;
-                }
+                state.cursor_left();
             }
             Event::Key(Key::Right) => {
-                cursor.column = min(cursor.column + 1, buffer[cursor.row].len());
+                state.cursor_right();
             }
-
             _ => {}
         }
-
-        // カーソルの移動
-        write!(
-            stdout,
-            "{}",
-            cursor::Goto(cursor.column as u16 + 1, cursor.row as u16 + 1)
-        );
-
-        stdout.flush().unwrap();
+        state.draw(&mut stdout);
     }
 }
