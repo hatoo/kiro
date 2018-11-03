@@ -2,6 +2,7 @@ extern crate clap;
 extern crate termion;
 
 use clap::{App, Arg};
+use std::cmp::min;
 use std::ffi::OsStr;
 use std::fs;
 use std::io::{stdin, stdout, Write};
@@ -12,6 +13,13 @@ use termion::event::{Event, Key};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// カーソルの位置　0-indexed
+struct Cursor {
+    row: usize,
+    column: usize,
+}
 
 fn main() {
     // Clap
@@ -32,12 +40,20 @@ fn main() {
             fs::read_to_string(path::Path::new(file_path))
                 .ok()
                 .map(|s| {
-                    s.lines()
+                    let buffer: Vec<Vec<char>> = s
+                        .lines()
                         .map(|line| line.trim_right().chars().collect())
-                        .collect()
+                        .collect();
+                    if buffer.is_empty() {
+                        vec![Vec::new()]
+                    } else {
+                        buffer
+                    }
                 })
         })
-        .unwrap_or(Vec::new());
+        .unwrap_or(vec![Vec::new()]);
+
+    let mut cursor = Cursor { row: 0, column: 0 };
 
     let stdin = stdin();
     // Rawモードに移行
@@ -56,19 +72,55 @@ fn main() {
         for &c in line {
             write!(stdout, "{}", c);
         }
-        // Rawモードでは開業は\r\nで行う
+        // Rawモードでは改行は\r\nで行う
         write!(stdout, "\r\n");
     }
 
-    // 最後にフラッシュする
+    write!(stdout, "{}", cursor::Goto(1, 1));
+    // フラッシュする
     stdout.flush().unwrap();
 
     // eventsはTermReadトレイトに定義されている
     for evt in stdin.events() {
-        // Ctrl-cでプログラム終了
-        // Rawモードなので自前で終了方法を書いてかないと終了する方法がなくなってしまう！
-        if evt.unwrap() == Event::Key(Key::Ctrl('c')) {
-            return;
+        match evt.unwrap() {
+            // Ctrl-cでプログラム終了
+            // Rawモードなので自前で終了方法を書いてかないと終了する方法がなくなってしまう！
+            Event::Key(Key::Ctrl('c')) => {
+                return;
+            }
+
+            // 方向キーの処理
+            Event::Key(Key::Up) => {
+                if cursor.row > 0 {
+                    cursor.row -= 1;
+                    cursor.column = min(buffer[cursor.row].len(), cursor.column);
+                }
+            }
+            Event::Key(Key::Down) => {
+                if cursor.row + 1 < buffer.len() {
+                    cursor.row += 1;
+                    cursor.column = min(cursor.column, buffer[cursor.row].len());
+                }
+            }
+            Event::Key(Key::Left) => {
+                if cursor.column > 1 {
+                    cursor.column -= 1;
+                }
+            }
+            Event::Key(Key::Right) => {
+                cursor.column = min(cursor.column + 1, buffer[cursor.row].len());
+            }
+
+            _ => {}
         }
+
+        // カーソルの移動
+        write!(
+            stdout,
+            "{}",
+            cursor::Goto(cursor.column as u16 + 1, cursor.row as u16 + 1)
+        );
+
+        stdout.flush().unwrap();
     }
 }
