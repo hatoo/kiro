@@ -103,7 +103,7 @@ fn main() {
                 }
             }
             Event::Key(Key::Left) => {
-                if cursor.column > 1 {
+                if cursor.column > 0 {
                     cursor.column -= 1;
                 }
             }
