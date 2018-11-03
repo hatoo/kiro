@@ -6,6 +6,7 @@ use termion::cursor;
 use termion::event::{Event, Key};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
 
 fn main() {
     let stdin = stdin();
@@ -13,7 +14,7 @@ fn main() {
     // into_raw_modeはIntoRawModeトレイトに定義されている
     // めんどくさいので失敗時は終了(unwrap)
     // stdout変数がDropするときにrawモードから元の状態にもどる
-    let mut stdout = stdout().into_raw_mode().unwrap();
+    let mut stdout = AlternateScreen::from(stdout().into_raw_mode().unwrap());
 
     // 画面全体をクリアする
     write!(stdout, "{}", clear::All);
