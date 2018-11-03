@@ -1,5 +1,6 @@
 extern crate clap;
 extern crate termion;
+extern crate unicode_width;
 
 use clap::{App, Arg};
 use std::cmp::{max, min};
@@ -13,6 +14,7 @@ use termion::event::{Event, Key};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
+use unicode_width::UnicodeWidthChar;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 // カーソルの位置　0-indexed
@@ -88,18 +90,18 @@ impl Kiro {
                 }
 
                 if let Some(c) = self.buffer[i].get(j) {
-                    write!(out, "{}", c);
-                    col += 1;
-                    if col >= cols {
+                    let width = c.width().unwrap_or(0);
+                    if col + width >= cols {
                         row += 1;
                         col = 0;
                         if row >= rows {
                             break 'outer;
                         } else {
-                            // 最後の行の最後では改行すると1行ずれてしまうのでこのようなコードになっている
                             write!(out, "\r\n");
                         }
                     }
+                    write!(out, "{}", c);
+                    col += width;
                 }
             }
             row += 1;
