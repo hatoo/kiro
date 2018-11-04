@@ -85,7 +85,6 @@ impl Kiro {
         'outer: for i in self.row_offset..self.buffer.len() {
             for j in 0..=self.buffer[i].len() {
                 if self.cursor == (Cursor { row: i, column: j }) {
-                    // 画面上のカーソルの位置がわかった
                     display_cursor = Some((row, col));
                 }
 
@@ -109,7 +108,6 @@ impl Kiro {
             if row >= rows {
                 break;
             } else {
-                // 最後の行の最後では改行すると1行ずれてしまうのでこのようなコードになっている
                 write!(out, "\r\n");
             }
         }
@@ -150,6 +148,53 @@ impl Kiro {
     fn cursor_right(&mut self) {
         self.cursor.column = min(self.cursor.column + 1, self.buffer[self.cursor.row].len());
     }
+    fn insert(&mut self, c: char) {
+        if c == '\n' {
+            // 改行
+            let rest: Vec<char> = self.buffer[self.cursor.row]
+                .drain(self.cursor.column..)
+                .collect();
+            self.buffer.insert(self.cursor.row + 1, rest);
+            self.cursor.row += 1;
+            self.cursor.column = 0;
+            self.scroll();
+        } else if !c.is_control() {
+            self.buffer[self.cursor.row].insert(self.cursor.column, c);
+            self.cursor_right();
+        }
+    }
+    fn back_space(&mut self) {
+        if self.cursor == (Cursor { row: 0, column: 0 }) {
+            // 一番始めの位置の場合何もしない
+            return;
+        }
+
+        if self.cursor.column == 0 {
+            // 行の先頭
+            let line = self.buffer.remove(self.cursor.row);
+            self.cursor.row -= 1;
+            self.cursor.column = self.buffer[self.cursor.row].len();
+            self.buffer[self.cursor.row].extend(line.into_iter());
+        } else {
+            self.cursor_left();
+            self.buffer[self.cursor.row].remove(self.cursor.column);
+        }
+    }
+    fn delete(&mut self) {
+        if self.cursor.row == self.buffer.len() - 1
+            && self.cursor.column == self.buffer[self.cursor.row].len()
+        {
+            return;
+        }
+
+        if self.cursor.column == self.buffer[self.cursor.row].len() {
+            // 行末
+            let line = self.buffer.remove(self.cursor.row + 1);
+            self.buffer[self.cursor.row].extend(line.into_iter());
+        } else {
+            self.buffer[self.cursor.row].remove(self.cursor.column);
+        }
+    }
 }
 
 fn main() {
@@ -189,6 +234,15 @@ fn main() {
             }
             Event::Key(Key::Right) => {
                 state.cursor_right();
+            }
+            Event::Key(Key::Char(c)) => {
+                state.insert(c);
+            }
+            Event::Key(Key::Backspace) => {
+                state.back_space();
+            }
+            Event::Key(Key::Delete) => {
+                state.delete();
             }
             _ => {}
         }
