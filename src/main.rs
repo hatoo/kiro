@@ -202,7 +202,7 @@ fn main() {
     let matches = App::new("kiro")
         .about("A text editor")
         .bin_name("kiro")
-        .arg(Arg::with_name("file"))
+        .arg(Arg::with_name("file").required(true))
         .get_matches();
 
     let file_path: Option<&OsStr> = matches.value_of_os("file");
