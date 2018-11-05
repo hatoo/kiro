@@ -31,6 +31,7 @@ struct Kiro {
     cursor: Cursor,
     // 画面の一番上はバッファの何行目か
     row_offset: usize,
+    path: Option<path::PathBuf>,
 }
 
 impl Default for Kiro {
@@ -39,6 +40,7 @@ impl Default for Kiro {
             buffer: vec![Vec::new()],
             cursor: Cursor { row: 0, column: 0 },
             row_offset: 0,
+            path: None,
         }
     }
 }
@@ -61,6 +63,7 @@ impl Kiro {
             })
             .unwrap_or(vec![Vec::new()]);
 
+        self.path = Some(path.into());
         self.cursor = Cursor { row: 0, column: 0 };
         self.row_offset = 0;
     }
@@ -195,6 +198,18 @@ impl Kiro {
             self.buffer[self.cursor.row].remove(self.cursor.column);
         }
     }
+    fn save(&self) {
+        if let Some(path) = self.path.as_ref() {
+            if let Ok(mut file) = fs::File::create(path) {
+                for line in &self.buffer {
+                    for &c in line {
+                        write!(file, "{}", c);
+                    }
+                    writeln!(file);
+                }
+            }
+        }
+    }
 }
 
 fn main() {
@@ -222,6 +237,9 @@ fn main() {
         match evt.unwrap() {
             Event::Key(Key::Ctrl('c')) => {
                 return;
+            }
+            Event::Key(Key::Ctrl('s')) => {
+                state.save();
             }
             Event::Key(Key::Up) => {
                 state.cursor_up();
