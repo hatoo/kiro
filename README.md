@@ -8,7 +8,7 @@ A small text editor in Rust.
 
 ### Keys
 
-```
+```txt
 Arrow-Keys: Move cursor
 CTRL-S: Save
 CTRL-C: Quit
