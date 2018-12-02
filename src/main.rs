@@ -220,13 +220,11 @@ fn main() {
         .arg(Arg::with_name("file").required(true))
         .get_matches();
 
-    let file_path: Option<&OsStr> = matches.value_of_os("file");
+    let file_path: &OsStr = matches.value_of_os("file").unwrap();
 
     let mut state = Kiro::default();
 
-    if let Some(file_path) = file_path {
-        state.open(path::Path::new(file_path));
-    }
+    state.open(path::Path::new(file_path));
 
     let stdin = stdin();
     let mut stdout = AlternateScreen::from(stdout().into_raw_mode().unwrap());
