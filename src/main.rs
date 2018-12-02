@@ -81,8 +81,8 @@ impl Kiro {
         // 画面サイズ(文字数)
         let (rows, cols) = Self::terminal_size();
 
-        write!(out, "{}", clear::All);
-        write!(out, "{}", cursor::Goto(1, 1));
+        write!(out, "{}", clear::All).unwrap();
+        write!(out, "{}", cursor::Goto(1, 1)).unwrap();
 
         // 画面上の行、列
         let mut row = 0;
@@ -104,10 +104,10 @@ impl Kiro {
                         if row >= rows {
                             break 'outer;
                         } else {
-                            write!(out, "\r\n");
+                            write!(out, "\r\n").unwrap();
                         }
                     }
-                    write!(out, "{}", c);
+                    write!(out, "{}", c).unwrap();
                     col += width;
                 }
             }
@@ -116,12 +116,12 @@ impl Kiro {
             if row >= rows {
                 break;
             } else {
-                write!(out, "\r\n");
+                write!(out, "\r\n").unwrap();
             }
         }
 
         if let Some((r, c)) = display_cursor {
-            write!(out, "{}", cursor::Goto(c as u16 + 1, r as u16 + 1));
+            write!(out, "{}", cursor::Goto(c as u16 + 1, r as u16 + 1)).unwrap();
         }
 
         out.flush().unwrap();
@@ -208,9 +208,9 @@ impl Kiro {
             if let Ok(mut file) = fs::File::create(path) {
                 for line in &self.buffer {
                     for &c in line {
-                        write!(file, "{}", c);
+                        write!(file, "{}", c).unwrap();
                     }
-                    writeln!(file);
+                    writeln!(file).unwrap();
                 }
             }
         }
