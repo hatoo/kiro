@@ -17,7 +17,7 @@ use termion::screen::AlternateScreen;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// カーソルの位置　0-indexed
+/// カーソルの位置　0-indexed
 struct Cursor {
     row: usize,
     column: usize,
@@ -25,11 +25,16 @@ struct Cursor {
 
 // エディタの内部状態
 struct Kiro {
-    // テキスト本体
+    /// テキスト本体
+    /// buffer[i][j]はi行目のj列目の文字
     buffer: Vec<Vec<char>>,
-    // 現在のカーソルの位置
+    /// 現在のカーソルの位置
+    /// self.cursor.row < self.buffer.len()
+    /// self.cursor.column <= self.buffer[self.cursor.row].len()
+    /// を常に保証する
     cursor: Cursor,
-    // 画面の一番上はバッファの何行目か
+    /// 画面の一番上はバッファの何行目か
+    /// スクロール処理に使う
     row_offset: usize,
     path: Option<path::PathBuf>,
 }
