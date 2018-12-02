@@ -66,7 +66,7 @@ impl Kiro {
                     buffer
                 }
             })
-            .unwrap_or(vec![Vec::new()]);
+            .unwrap_or_else(|| vec![Vec::new()]);
 
         self.path = Some(path.into());
         self.cursor = Cursor { row: 0, column: 0 };
