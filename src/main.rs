@@ -1,7 +1,3 @@
-extern crate clap;
-extern crate termion;
-extern crate unicode_width;
-
 use clap::{App, Arg};
 use std::cmp::{max, min};
 use std::ffi::OsStr;
