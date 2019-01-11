@@ -54,7 +54,7 @@ impl Kiro {
             .map(|s| {
                 let buffer: Vec<Vec<char>> = s
                     .lines()
-                    .map(|line| line.trim_right().chars().collect())
+                    .map(|line| line.trim_end().chars().collect())
                     .collect();
                 if buffer.is_empty() {
                     vec![Vec::new()]
