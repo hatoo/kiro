@@ -2,7 +2,7 @@ use clap::{App, Arg};
 use std::cmp::{max, min};
 use std::ffi::OsStr;
 use std::fs;
-use std::io::{stdin, stdout, Write};
+use std::io::{self, stdin, stdout, Write};
 use std::path;
 use termion::clear;
 use termion::cursor;
@@ -73,12 +73,12 @@ impl Kiro {
         (rows as usize, cols as usize)
     }
     // 描画処理
-    fn draw<T: Write>(&self, out: &mut T) {
+    fn draw<T: Write>(&self, out: &mut T) -> Result<(), io::Error> {
         // 画面サイズ(文字数)
         let (rows, cols) = Self::terminal_size();
 
-        write!(out, "{}", clear::All).unwrap();
-        write!(out, "{}", cursor::Goto(1, 1)).unwrap();
+        write!(out, "{}", clear::All)?;
+        write!(out, "{}", cursor::Goto(1, 1))?;
 
         // 画面上の行、列
         let mut row = 0;
@@ -100,10 +100,10 @@ impl Kiro {
                         if row >= rows {
                             break 'outer;
                         } else {
-                            write!(out, "\r\n").unwrap();
+                            write!(out, "\r\n")?;
                         }
                     }
-                    write!(out, "{}", c).unwrap();
+                    write!(out, "{}", c)?;
                     col += width;
                 }
             }
@@ -112,15 +112,16 @@ impl Kiro {
             if row >= rows {
                 break;
             } else {
-                write!(out, "\r\n").unwrap();
+                write!(out, "\r\n")?;
             }
         }
 
         if let Some((r, c)) = display_cursor {
-            write!(out, "{}", cursor::Goto(c as u16 + 1, r as u16 + 1)).unwrap();
+            write!(out, "{}", cursor::Goto(c as u16 + 1, r as u16 + 1))?;
         }
 
-        out.flush().unwrap();
+        out.flush()?;
+        Ok(())
     }
     // カーソルが画面に映るようにする
     fn scroll(&mut self) {
@@ -230,7 +231,7 @@ fn main() {
     let stdin = stdin();
     let mut stdout = AlternateScreen::from(stdout().into_raw_mode().unwrap());
 
-    state.draw(&mut stdout);
+    state.draw(&mut stdout).unwrap();
 
     for evt in stdin.events() {
         match evt.unwrap() {
@@ -263,6 +264,6 @@ fn main() {
             }
             _ => {}
         }
-        state.draw(&mut stdout);
+        state.draw(&mut stdout).unwrap();
     }
 }
